@@ -1,0 +1,1 @@
+﻿__pycache__/\n*.pyc\n*.pyo\n*.pyd\n.pytest_cache/\ncoverage/\n*.coverage\nemail-triage-agent/venv/\nemail-triage-agent/.env\nemail-triage-agent/credentials.json\nemail-triage-agent/token.json\n.vscode/\n.idea/\n.DS_Store\nThumbs.db\n*.log\n*.db\n*.sqlite3\n.git/

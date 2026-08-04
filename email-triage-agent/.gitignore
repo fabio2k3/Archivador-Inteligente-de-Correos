@@ -141,3 +141,31 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+
+# ==== Python / Proyecto Email Triage Agent ====
+
+# Entorno virtual
+venv/
+env/
+ENV/
+
+# Bytecode compilado de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Secretos de Google API - NUNCA subir a git
+credentials.json
+token.json
+
+# Variables de entorno (ya cubierto arriba, pero reforzamos)
+.env
+
+# Bases de datos locales (por si usamos SQLite en pruebas)
+*.db
+*.sqlite3
+
+# Archivos de VSCode/PyCharm específicos del usuario
+.vscode/
+.idea/
