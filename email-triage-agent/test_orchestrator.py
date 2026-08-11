@@ -1,6 +1,6 @@
 from app.db.session import SessionLocal
 from app.services.email_orchestrator import process_and_store_email
-from test_gmail_auth import get_gmail_service  # reutilizamos la funcion que ya escribimos
+from app.services.gmail_service import get_gmail_service
 
 def main():
     gmail_service = get_gmail_service()
