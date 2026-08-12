@@ -10,8 +10,8 @@ client = InferenceClient(api_key=settings.huggingface_api_key)
 # se intenta con el siguiente
 MODEL_FALLBACK_CHAIN = [
     "Qwen/Qwen2.5-72B-Instruct",
-    "mistralai/Mistral-7B-Instruct-v0.3",
-    "HuggingFaceH4/zephyr-7b-beta",
+    "meta-llama/Llama-3.3-70B-Instruct",
+    "deepseek-ai/DeepSeek-V3-0324",
 ]
 
 
