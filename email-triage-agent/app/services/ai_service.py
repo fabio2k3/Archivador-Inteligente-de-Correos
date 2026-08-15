@@ -1,13 +1,14 @@
 import json
+import logging
 import re
 from huggingface_hub import InferenceClient
 from huggingface_hub.errors import HfHubHTTPError
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 client = InferenceClient(api_key=settings.huggingface_api_key)
 
-# Orden de prioridad: si el primero falla (rate limit, indisponible, JSON invalido),
-# se intenta con el siguiente
 MODEL_FALLBACK_CHAIN = [
     "Qwen/Qwen2.5-72B-Instruct",
     "meta-llama/Llama-3.3-70B-Instruct",
@@ -39,13 +40,11 @@ def _extract_json(raw_text: str) -> dict:
     Los modelos open-source a veces envuelven el JSON en markdown (```json ... ```)
     o agregan texto antes/despues. Esta funcion extrae el bloque JSON de forma robusta.
     """
-    # Intento 1: parsear directo
     try:
         return json.loads(raw_text.strip())
     except json.JSONDecodeError:
         pass
 
-    # Intento 2: buscar el primer '{' y el ultimo '}' del texto
     match = re.search(r"\{.*\}", raw_text, re.DOTALL)
     if match:
         return json.loads(match.group(0))
@@ -71,27 +70,28 @@ def analyze_email(subject: str, sender: str, body: str) -> dict:
 
     for model_name in MODEL_FALLBACK_CHAIN:
         try:
-            print(f"Intentando con modelo: {model_name}")
+            logger.info(f"Intentando con modelo: {model_name}")
             response = client.chat_completion(
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=500,
-                temperature=0.2,  # baja temperatura: queremos consistencia, no creatividad
+                temperature=0.2,
             )
             raw_text = response.choices[0].message.content
             result = _extract_json(raw_text)
             result = _validate_result(result)
 
-            print(f"Exito con modelo: {model_name}")
+            logger.info(f"Exito con modelo: {model_name}")
             return result
 
         except HfHubHTTPError as e:
-            print(f"Fallo {model_name} (HTTP/rate limit): {e}")
+            logger.warning(f"Fallo {model_name} (HTTP/rate limit): {e}")
             last_error = e
             continue
         except (ValueError, json.JSONDecodeError) as e:
-            print(f"Fallo {model_name} (JSON invalido): {e}")
+            logger.warning(f"Fallo {model_name} (JSON invalido): {e}")
             last_error = e
             continue
 
+    logger.error(f"Todos los modelos fallaron para el correo '{subject}'. Ultimo error: {last_error}")
     raise RuntimeError(f"Todos los modelos fallaron. Ultimo error: {last_error}")

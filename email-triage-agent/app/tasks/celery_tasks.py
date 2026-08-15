@@ -1,6 +1,11 @@
+import logging
 from celery import Celery
 from celery.schedules import crontab
 from app.core.config import settings
+from app.core.logging_config import setup_logging
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 celery_app = Celery(
     "email_triage_agent",
@@ -8,19 +13,22 @@ celery_app = Celery(
     backend=settings.celery_result_backend,
 )
 
-celery_app.conf.timezone = "America/Guayaquil"  # ajusta a tu zona horaria real si es distinta
+celery_app.conf.timezone = "America/Guayaquil"  # ajusta a tu zona horaria real
 
-# Configuracion del "Beat" - que tarea correr y cada cuanto
 celery_app.conf.beat_schedule = {
     "sync-emails-every-30-minutes": {
         "task": "app.tasks.celery_tasks.sync_and_process_emails",
-        "schedule": crontab(minute="*/30"),  # cada 30 minutos
+        "schedule": crontab(minute="*/30"),
     },
 }
 
 
 @celery_app.task(name="app.tasks.celery_tasks.sync_and_process_emails")
 def sync_and_process_emails():
+    """
+    Tarea periodica: sincroniza correos recientes de Gmail, los procesa
+    con IA, los clasifica, y mueve newsletters con +7 dias a Pendientes.
+    """
     from app.db.session import SessionLocal
     from app.services.gmail_service import get_gmail_service
     from app.services.email_orchestrator import process_and_store_email
@@ -47,16 +55,14 @@ def sync_and_process_emails():
                 process_and_store_email(db, full_message, is_unread)
                 procesados += 1
             except Exception as e:
-                # Un correo individual fallo (ej: los 3 modelos de IA fallaron).
-                # Lo registramos y seguimos con el siguiente, en vez de abortar todo.
-                print(f"Error procesando correo {msg['id']}: {e}")
+                logger.error(f"Error procesando correo {msg['id']}: {e}")
                 fallidos += 1
                 continue
 
         movidos = move_stale_newsletters_to_pending(db, gmail_service)
 
         resultado = f"Procesados: {procesados}, Fallidos: {fallidos}, Movidos a Pendientes: {len(movidos)}"
-        print(resultado)
+        logger.info(resultado)
         return resultado
 
     finally:
