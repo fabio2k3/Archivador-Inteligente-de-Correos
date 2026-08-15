@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Email Triage Agent</title>
+<style>
+    body {
+        font-family: -apple-system, sans-serif;
+        max-width: 900px;
+        margin: 40px auto;
+        padding: 0 20px;
+        background: #f5f5f5;
+        color: #222;
+    }
+    h1 { font-size: 24px; }
+    .controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        align-items: center;
+    }
+    select, button {
+        padding: 8px 12px;
+        font-size: 14px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        cursor: pointer;
+    }
+    button {
+        background: #2563eb;
+        color: white;
+        border: none;
+    }
+    button:hover { background: #1d4ed8; }
+    button:disabled { background: #999; cursor: not-allowed; }
+    .email-card {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .email-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+    .sender { font-weight: 600; font-size: 14px; }
+    .subject { color: #444; font-size: 14px; margin-bottom: 8px; }
+    .badge {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .badge-importante { background: #fee2e2; color: #b91c1c; }
+    .badge-newsletter { background: #dbeafe; color: #1d4ed8; }
+    .badge-spam { background: #f3f4f6; color: #6b7280; }
+    .badge-sin_clasificar { background: #fef3c7; color: #92400e; }
+    .summary { font-size: 13px; color: #555; line-height: 1.6; }
+    .due-date {
+        font-size: 12px;
+        color: #b91c1c;
+        margin-top: 6px;
+        font-weight: 600;
+    }
+    .pending-tag {
+        font-size: 11px;
+        color: #7c3aed;
+        margin-top: 6px;
+    }
+    #status { font-size: 13px; color: #666; margin-bottom: 10px; }
+    .loading { text-align: center; padding: 40px; color: #999; }
+</style>
+</head>
+<body>
+
+<h1>📬 Email Triage Agent</h1>
+
+<div class="controls">
+    <select id="categoryFilter">
+        <option value="">Todas las categorias</option>
+        <option value="importante">Importante</option>
+        <option value="newsletter">Newsletter</option>
+        <option value="spam">Spam</option>
+        <option value="sin_clasificar">Sin clasificar</option>
+    </select>
+    <button id="pendingBtn">Ver Pendientes</button>
+    <button id="allBtn">Ver Todos</button>
+    <button id="syncBtn">🔄 Sincronizar ahora</button>
+</div>
+
+<div id="status"></div>
+<div id="emailList" class="loading">Cargando correos...</div>
+
+<script>
+const API_BASE = "/api";
+
+const emailList = document.getElementById("emailList");
+const statusEl = document.getElementById("status");
+const categoryFilter = document.getElementById("categoryFilter");
+const syncBtn = document.getElementById("syncBtn");
+
+function renderEmails(emails) {
+    if (emails.length === 0) {
+        emailList.innerHTML = '<div class="loading">No hay correos para mostrar.</div>';
+        return;
+    }
+
+    emailList.innerHTML = emails.map(email => `
+        <div class="email-card">
+            <div class="email-header">
+                <span class="sender">${escapeHtml(email.sender)}</span>
+                <span class="badge badge-${email.category}">${email.category}</span>
+            </div>
+            <div class="subject">${escapeHtml(email.subject || "(sin asunto)")}</div>
+            ${email.summary ? `<div class="summary">${escapeHtml(email.summary).replace(/\|/g, "<br>•")}</div>` : ""}
+            ${email.due_date ? `<div class="due-date">⏰ Vence: ${email.due_date}</div>` : ""}
+            ${email.moved_to_pending ? `<div class="pending-tag">📥 Movido a Pendientes</div>` : ""}
+        </div>
+    `).join("");
+}
+
+function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function loadEmails(endpoint = "/emails") {
+    emailList.innerHTML = '<div class="loading">Cargando correos...</div>';
+    try {
+        const response = await fetch(API_BASE + endpoint);
+        if (!response.ok) throw new Error(`Error ${response.status}`);
+        const emails = await response.json();
+        renderEmails(emails);
+        statusEl.textContent = `${emails.length} correo(s) mostrados`;
+    } catch (err) {
+        emailList.innerHTML = `<div class="loading">Error cargando correos: ${err.message}</div>`;
+    }
+}
+
+categoryFilter.addEventListener("change", () => {
+    const cat = categoryFilter.value;
+    loadEmails(cat ? `/emails?category=${cat}` : "/emails");
+});
+
+document.getElementById("pendingBtn").addEventListener("click", () => {
+    categoryFilter.value = "";
+    loadEmails("/emails/pending");
+});
+
+document.getElementById("allBtn").addEventListener("click", () => {
+    categoryFilter.value = "";
+    loadEmails("/emails");
+});
+
+syncBtn.addEventListener("click", async () => {
+    syncBtn.disabled = true;
+    syncBtn.textContent = "Sincronizando...";
+    statusEl.textContent = "Encolando tarea de sincronizacion...";
+    try {
+        const response = await fetch(API_BASE + "/sync/trigger", { method: "POST" });
+        const data = await response.json();
+        statusEl.textContent = `${data.message} (task_id: ${data.task_id})`;
+    } catch (err) {
+        statusEl.textContent = `Error al sincronizar: ${err.message}`;
+    } finally {
+        syncBtn.disabled = false;
+        syncBtn.textContent = "🔄 Sincronizar ahora";
+    }
+});
+
+// Carga inicial
+loadEmails();
+</script>
+
+</body>
+</html>
