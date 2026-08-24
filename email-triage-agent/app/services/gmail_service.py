@@ -12,6 +12,26 @@ SCOPES = [
 
 PENDIENTES_LABEL_NAME = "Pendientes"
 
+import base64
+
+def _restore_credentials_from_env():
+    """
+    En el servidor no hay navegador para hacer login interactivo, asi que
+    credentials.json y token.json se guardan como variables de entorno en
+    Base64 y se reconstruyen en disco al arrancar, si no existen ya.
+    """
+    mapping = {
+        "GOOGLE_CREDENTIALS_JSON_B64": "credentials.json",
+        "GOOGLE_TOKEN_JSON_B64": "token.json",
+    }
+    for env_var, filename in mapping.items():
+        if not os.path.exists(filename):
+            encoded = os.environ.get(env_var)
+            if encoded:
+                with open(filename, "wb") as f:
+                    f.write(base64.b64decode(encoded))
+
+_restore_credentials_from_env()
 
 def get_gmail_service():
     creds = None
